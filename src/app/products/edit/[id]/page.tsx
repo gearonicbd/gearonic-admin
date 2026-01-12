@@ -2,9 +2,11 @@
 
 import type React from "react";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { getProductById, updateProduct, type Product } from "@/lib/dummy";
+import axios from "axios";
+import { apiUrl } from "@/lib/api";
+import type { Product } from "@/lib/dummy";
 
 interface Variant {
   id: string;
@@ -24,9 +26,10 @@ interface SpecificationCategory {
 export default function EditProductPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
+  const { id } = use(params);
   const [product, setProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({
     title: "",
@@ -137,65 +140,83 @@ export default function EditProductPage({
   // Update the useEffect to load specifications correctly
   useEffect(() => {
     const fetchProduct = async () => {
-      const { id } = await params;
-      const foundProduct = getProductById(id);
-      if (foundProduct) {
-        setProduct(foundProduct);
-        setFormData({
-          title: foundProduct.title,
-          featuredImage: foundProduct.featuredImage,
-          images: foundProduct.images.length > 0 ? foundProduct.images : [""],
-          category: foundProduct.category,
-          brand: foundProduct.brand,
-          originalPrice: foundProduct.originalPrice,
-          discountPrice: foundProduct.discountPrice || 0,
-          sold: foundProduct.sold,
-          totalStock: foundProduct.totalStock,
-          rating: foundProduct.rating || 0,
-          hasVariants: foundProduct.hasVariants,
-          description: foundProduct.description || "",
-          features:
-            foundProduct.features.length > 0 ? foundProduct.features : [""],
-          specifications: "", // Remove this line since we're handling it separately
-          isFlashSale: foundProduct.isFlashSale,
-          flashSaleEnd: foundProduct.flashSaleEnd
-            ? foundProduct.flashSaleEnd.toISOString().slice(0, 16)
-            : "",
+      try {
+        const res = await fetch(apiUrl(`/api/admin/products/${id}`), {
+          cache: "no-store",
         });
+        const foundProduct = await res.json();
+        if (foundProduct) {
+          setProduct(foundProduct);
+          setFormData({
+            title: foundProduct.title,
+            featuredImage: foundProduct.featuredImage,
+            images: foundProduct.images.length > 0 ? foundProduct.images : [""],
+            category: foundProduct.category,
+            brand: foundProduct.brand,
+            originalPrice: foundProduct.originalPrice,
+            discountPrice: foundProduct.discountPrice || 0,
+            sold: foundProduct.sold,
+            totalStock: foundProduct.totalStock,
+            rating: foundProduct.rating || 0,
+            hasVariants: foundProduct.hasVariants,
+            description: foundProduct.description || "",
+            features:
+              foundProduct.features.length > 0 ? foundProduct.features : [""],
+            specifications: "",
+            isFlashSale: foundProduct.isFlashSale,
+            flashSaleEnd: foundProduct.flashSaleEnd
+              ? new Date(foundProduct.flashSaleEnd).toISOString().slice(0, 16)
+              : "",
+          });
 
-        // In the useEffect, replace the specifications loading part:
-        if (foundProduct.specifications) {
-          const specCategories: SpecificationCategory[] = Object.entries(
-            foundProduct.specifications
-          ).map(([categoryName, specs]) => ({
-            name: categoryName,
-            specs: specs as { [key: string]: string },
-          }));
-          setSpecifications(
-            specCategories.length > 0
-              ? specCategories
-              : [
-                  {
-                    name: "Basic Information",
-                    specs: { display: "", memory: "", battery: "" },
-                  },
-                ]
-          );
-        } else {
-          setSpecifications([
-            {
-              name: "Basic Information",
-              specs: { display: "", memory: "", battery: "" },
-            },
-          ]);
+          // Transform specifications from database format to form format
+          if (
+            foundProduct.specifications &&
+            Array.isArray(foundProduct.specifications) &&
+            foundProduct.specifications.length > 0
+          ) {
+            // Transform from database format: [{name, specs: [{key, value}]}]
+            // To form format: [{name, specs: {key: value}}]
+            const transformedSpecs: SpecificationCategory[] =
+              foundProduct.specifications.map(
+                (category: SpecificationCategory) => {
+                  const specsObject: { [key: string]: string } = {};
+
+                  if (Array.isArray(category.specs)) {
+                    category.specs.forEach(
+                      (spec: { key: string; value: string }) => {
+                        specsObject[spec.key] = spec.value;
+                      }
+                    );
+                  }
+
+                  return {
+                    name: category.name,
+                    specs: specsObject,
+                  };
+                }
+              );
+
+            setSpecifications(transformedSpecs);
+          } else {
+            // Set default if no specifications exist
+            setSpecifications([
+              {
+                name: "Basic Information",
+                specs: { Brand: "", Model: "", "Regular Price": "" },
+              },
+            ]);
+          }
+
+          setVariants(foundProduct.variants || []);
+          setShowVariants(foundProduct.hasVariants);
         }
-
-        setVariants(foundProduct.variants);
-        setShowVariants(foundProduct.hasVariants);
+      } catch (err) {
+        console.error(err);
       }
     };
     fetchProduct();
-  }, [params]);
+  }, [id]);
 
   const handleInputChange = (
     e: React.ChangeEvent<
@@ -243,7 +264,7 @@ export default function EditProductPage({
     setVariants((prev) => [
       ...prev,
       {
-        id: Math.random().toString(36).substr(2, 9),
+        id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         color: "",
         price: 0,
         stock: 0,
@@ -270,21 +291,20 @@ export default function EditProductPage({
   };
 
   // Update the handleSubmit function
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!product) return;
 
     try {
-      // Process specifications into the correct format
-      const processedSpecifications: {
-        [key: string]: { [key: string]: string };
-      } = {};
-      specifications.forEach((category) => {
-        if (category.name.trim()) {
-          processedSpecifications[category.name] = category.specs;
-        }
-      });
+      // Transform specifications back to database format (array of {key, value})
+      const processedSpecifications = specifications.map((category) => ({
+        name: category.name,
+        specs: Object.entries(category.specs).map(([key, value]) => ({
+          key,
+          value,
+        })),
+      }));
 
       const updatedData = {
         ...formData,
@@ -296,12 +316,17 @@ export default function EditProductPage({
         flashSaleEnd: formData.flashSaleEnd
           ? new Date(formData.flashSaleEnd)
           : undefined,
+        hasVariants: showVariants,
         variants: showVariants ? variants : [],
       };
 
-      updateProduct(product.id, updatedData);
+      await axios.patch(
+        apiUrl(`/api/admin/products/${product.id}`),
+        updatedData
+      );
       router.push("/products");
     } catch (error) {
+      console.error("Update error:", error);
       alert("Error updating product. Please check your input.");
     }
   };
