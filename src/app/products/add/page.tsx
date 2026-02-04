@@ -211,7 +211,7 @@ export default function AddProductPage() {
         productData
       );
       setMessage("Product created successfully");
-      setTimeout(() => router.push("/products"), 800);
+      // setTimeout(() => router.push("/products"), 800);
     } catch (error) {
       alert("Error creating product. Please check your input.");
     } finally {
