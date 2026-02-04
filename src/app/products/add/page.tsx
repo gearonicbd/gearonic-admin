@@ -43,6 +43,7 @@ export default function AddProductPage() {
     features: [""],
     isFlashSale: false,
     flashSaleEnd: "",
+    flashSaleStock: 0,
   });
 
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -180,10 +181,15 @@ export default function AddProductPage() {
     );
   };
 
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
+      setSubmitting(true);
+      setMessage(null);
       const productData = {
         ...formData,
         images: formData.images.filter((img) => img.trim() !== ""),
@@ -204,10 +210,12 @@ export default function AddProductPage() {
         `${process.env.NEXT_PUBLIC_SERVER_URL}/api/admin/add-product`,
         productData
       );
-
-      console.log(productData);
+      setMessage("Product created successfully");
+      // setTimeout(() => router.push("/products"), 800);
     } catch (error) {
       alert("Error creating product. Please check your input.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -592,18 +600,32 @@ export default function AddProductPage() {
                 </div>
 
                 {formData.isFlashSale && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Flash Sale End Date
-                    </label>
-                    <input
-                      type="datetime-local"
-                      name="flashSaleEnd"
-                      value={formData.flashSaleEnd}
-                      onChange={handleInputChange}
-                      className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md border px-3 py-2"
-                    />
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Flash Sale End Date
+                      </label>
+                      <input
+                        type="datetime-local"
+                        name="flashSaleEnd"
+                        value={formData.flashSaleEnd}
+                        onChange={handleInputChange}
+                        className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md border px-3 py-2"
+                      />
+                    </div>
+                    <div className="col-span-6 sm:col-span-4">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Flash Sale Campaign stock *
+                      </label>
+                      <input
+                        type="number"
+                        name="flashSaleStock"
+                        value={formData.flashSaleStock}
+                        onChange={handleInputChange}
+                        className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md border px-3 py-2"
+                      />
+                    </div>
+                  </>
                 )}
 
                 {/* Variants Section */}
@@ -735,12 +757,18 @@ export default function AddProductPage() {
               </div>
 
               <div className="px-4 py-3 bg-gray-50 text-right sm:px-6">
-                <button
-                  type="submit"
-                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  Create Product
-                </button>
+                <div className="flex items-center justify-between">
+                  {message && (
+                    <span className="text-sm text-green-700">{message}</span>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-60"
+                  >
+                    {submitting ? "Submitting..." : "Create Product"}
+                  </button>
+                </div>
               </div>
             </div>
           </form>
