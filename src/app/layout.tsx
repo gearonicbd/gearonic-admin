@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
 import "../styles/globals.css";
 import Link from "next/link";
+import { Noto_Sans_Bengali } from "next/font/google";
 
 export const metadata: Metadata = {
   title: "Gearonic Admin",
   description: "Gearonic admin panel",
 };
+
+const notoSansBengali = Noto_Sans_Bengali({
+  subsets: ['bengali'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+});
 
 export default function RootLayout({
   children,
@@ -13,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={notoSansBengali.className}>
       <body>
         <div className="min-h-screen bg-gray-50">
           <nav className="bg-white shadow-md border-b border-gray-200">

@@ -38,6 +38,7 @@ export default function OrdersPage() {
       } catch (err) {
         console.error(err);
       } finally {
+        console.log(orders)
         setLoading(false);
       }
     };
